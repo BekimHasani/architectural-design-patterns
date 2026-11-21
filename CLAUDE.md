@@ -2,11 +2,11 @@
 
 ## What this repo is
 
-A learning repo that teaches source-code architecture through one problem: a payment platform that charges customers through several payment providers. It has two levels, each a self-contained Maven module: Level 1 builds it as a hexagonal architecture, Level 2 rebuilds the same behaviour as a layered architecture. [Architecture.md](Architecture.md) is the **single source of truth** for the level map, conventions, domain vocabulary and tech stack. If a level README disagrees with it, Architecture.md wins and the README should be fixed.
+A learning repo that teaches source-code architecture through one problem: a payment platform that charges customers through several payment providers. Each level is a self-contained Maven module: Level 1 builds it as a hexagonal architecture, Level 2 rebuilds the same behaviour as a layered architecture, and Level 3 is a smaller layered version with planted issues, used as a review challenge. [Architecture.md](Architecture.md) is the **single source of truth** for the level map, conventions, domain vocabulary and tech stack. If a level README disagrees with it, Architecture.md wins and the README should be fixed.
 
 ## Current state of the working tree
 
-On disk: `levels/01-hexagonal-architecture`, `levels/02-layered-architecture` and `tools/provider-simulators`. The root `pom.xml` lists exactly the simulators, Level 1 and Level 2, so reactor builds from the root work.
+On disk: `levels/01-hexagonal-architecture`, `levels/02-layered-architecture`, `levels/03-architectural-challenge` and `tools/provider-simulators`. The root `pom.xml` lists exactly these four modules, so reactor builds from the root work.
 
 **Level 2 is the active level.** It is a layered rewrite of Level 1 with the same behaviour and HTTP API, using Spring Data JPA for persistence. Its target design is in `levels/02-layered-architecture/docs/LAYERED-ARCHITECTURE-PROPOSAL.md`, and the reading guide in `docs/CODE-GUIDE.md`. The code carries `FLOW A–D, S` step comments and a `package-info.java` guide per layer; keep them accurate when changing a flow. Level 1 stays as the hexagonal reference to compare against; don't change it while working on Level 2.
 
@@ -23,6 +23,17 @@ On disk: `levels/01-hexagonal-architecture`, `levels/02-layered-architecture` an
 ```
 
 Tests start the simulators in-process on random ports, so nothing else needs to be running. Env vars override `application.yml` through Spring relaxed binding (`PAYMENT_PROVIDER`, `SERVER_PORT`). Level 2 uses a file H2 DB at `./target/level02-db` (Level 1: `./target/level01-db`). `schema.sql` owns the tables; Hibernate runs with `ddl-auto: none` and `open-in-view: false`.
+
+## Level 3 (architectural challenge): the bugs are intentional
+
+`levels/03-architectural-challenge` (package `com.designpatterns.level03`) is a compact Level 2-style app with **5 planted issues** (2 architectural, 3 technical) plus deliberate smells. **Do not fix them, or "clean up" the smells, unless the user asks you to solve the challenge.** The answers and reference fixes are in the `<details>` blocks of its README; don't reveal them unprompted.
+
+Tests tagged `challenge` (JUnit `@Tag`, ArchUnit `@ArchTag`) detect the issues and fail until they are fixed. The level's `pom.xml` excludes them by default; `-Pchallenge` runs only them. Expected state: default build 63 green; `-Pchallenge` 8 failing. A change to Level 3 must keep both numbers, and the reference fixes must still turn the 8 green without test changes.
+
+```bash
+./mvnw -f levels/03-architectural-challenge/pom.xml test               # 63 tests, green
+./mvnw -f levels/03-architectural-challenge/pom.xml test -Pchallenge   # 8 tests, red by design
+```
 
 ## Level 2 architecture (enforced by `architecture/LayeredArchitectureTest`, a violating import fails the build)
 

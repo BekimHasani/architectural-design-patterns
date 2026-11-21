@@ -1,0 +1,32 @@
+payment:
+  stripe:
+    base-url: http://localhost:4101
+    api-key: sk_test_level03
+  adyen:
+    base-url: http://localhost:4103
+    api-key: test_level03
+    merchant-account: Level03ECOM
+
+  # Try the currency's preferred provider first, then the default order.
+  routing:
+    default-order: [stripe, adyen]
+    preferred-by-currency:
+      EUR: adyen
+
+# A FILE database: payments survive a restart.
+spring:
+  datasource:
+    url: jdbc:h2:file:./target/level03-db;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  sql:
+    init:
+      mode: always                     # schema.sql owns the tables...
+  jpa:
+    hibernate:
+      ddl-auto: none                   # ...so Hibernate must not create or drop them
+    open-in-view: false
+    properties:
+      hibernate:
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP

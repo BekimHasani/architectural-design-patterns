@@ -10,7 +10,8 @@
 
 This repo teaches **source-code architecture** by building one realistic system —
 a payment platform that charges customers through several payment providers —
-twice, in two different architectural styles.
+twice, in two different architectural styles, and then hands you a third, flawed
+version to review and fix.
 
 ### The one question behind every level
 
@@ -30,6 +31,7 @@ boundary clean has succeeded.
 |---|-------|----------|---------------|--------|
 | 1 | Hexagonal architecture | 20 providers with different capabilities (refunds or not, hold or charge-only, sync or async, limited currencies) | Ports & adapters, interface segregation, capability model, leaky abstractions | [levels/01-hexagonal-architecture](levels/01-hexagonal-architecture/README.md) |
 | 2 | Layered architecture | Same behaviour and HTTP API, rebuilt the way most Spring teams structure an app | Layers that only call downward, repositories owned by persistence, Spring Data JPA, transactions kept away from provider calls | [levels/02-layered-architecture](levels/02-layered-architecture/docs/CODE-GUIDE.md) |
+| 3 | Architectural challenge | A smaller layered platform (charge, refund, two providers) with 5 planted issues: 2 architectural, 3 technical | Reviewing against layer rules, fitness functions, invariants as tests (lost responses, refund limits, idempotency scope) | [levels/03-architectural-challenge](levels/03-architectural-challenge/README.md) |
 
 Both levels implement the full platform: authorize / capture / cancel / refund,
 routing, retry and circuit breaking, idempotency, reconciliation of unknown
@@ -151,6 +153,10 @@ Rules (packages under `com.designpatterns.level02`, enforced by `architecture/La
 - `persistence` and `integration` must not depend on each other. `config` must not
   name any provider; providers register through a `ProviderFactory` `@Component`.
 
+Level 3 (`com.designpatterns.level03`) follows the same rules, checked by its own
+`architecture/LayeredArchitectureTest`. Its planted issues break some of them on
+purpose: the rules that catch them are tagged `challenge` (see below).
+
 ### 5.3 Build and run
 
 The root `pom.xml` only aggregates modules and pins versions; it holds no code.
@@ -161,6 +167,7 @@ The root `pom.xml` only aggregates modules and pins versions; it holds no code.
 ./mvnw -q install -DskipTests                             # once, before running a single level
 ./mvnw -q exec:java -pl tools/provider-simulators         # start simulators (ports 4101–4107)
 ./mvnw -q spring-boot:run -pl levels/02-layered-architecture
+./mvnw -f levels/03-architectural-challenge/pom.xml test -Pchallenge   # Level 3's challenge tests only
 ```
 
 Settings in `application.yml` can be overridden with environment variables
@@ -168,7 +175,8 @@ Settings in `application.yml` can be overridden with environment variables
 `server.port` ← `SERVER_PORT`.
 
 Tests start the simulators in-process on random ports, so `./mvnw test`
-needs nothing else running.
+needs nothing else running. Tests tagged `challenge` (Level 3) fail until the
+planted issues are fixed, so the normal build excludes them.
 
 ### 5.4 Testing strategy
 
@@ -181,8 +189,8 @@ needs nothing else running.
 | Webhook replay / reorder tests | Async state converges correctly |
 | Architecture tests (ArchUnit) | The dependency rule cannot silently erode |
 
-`@SpringBootTest` is used only in `e2e/`, `@DataJpaTest` only in Level 2's
-`persistence/jpa/`, and plain JUnit everywhere else.
+`@SpringBootTest` is used only in `e2e/`, `@DataJpaTest` only in
+`persistence/jpa/` (Levels 2 and 3), and plain JUnit everywhere else.
 
 ### 5.5 Tech stack
 
@@ -238,6 +246,7 @@ which both levels use as a **test-scoped** dependency.
 |-------|-------------------|
 | 1 | You can explain where a single `PaymentProvider` interface leaks, and you choose a capability model deliberately, not by accident. A new provider is added by writing an adapter + config only. |
 | 2 | You can say which interfaces changed owner compared with Level 1, why services must not use `@Transactional` here, and when you would pick layered over hexagonal (and back). |
+| 3 | You found all 5 issues by reading, before running the challenge tests, and fixed them without touching a test. You can explain why a lost response must never fall back to another provider. |
 
 ---
 

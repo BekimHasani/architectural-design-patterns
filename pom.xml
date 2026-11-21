@@ -18,6 +18,7 @@
         <module>tools/provider-simulators</module>
         <module>levels/01-hexagonal-architecture</module>
         <module>levels/02-layered-architecture</module>
+        <module>levels/03-architectural-challenge</module>
     </modules>
 
     <properties>
