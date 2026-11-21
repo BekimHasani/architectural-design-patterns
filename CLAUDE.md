@@ -2,31 +2,31 @@
 
 ## What this repo is
 
-A learning path that teaches source-code architecture through one evolving problem: a checkout that charges customers through several payment providers. Each level is a self-contained Maven module that adds one new requirement. [Architecture.md](Architecture.md) is the **single source of truth** for the level map, conventions, domain vocabulary and tech stack. If a level README disagrees with it, Architecture.md wins and the README should be fixed.
+A learning repo that teaches source-code architecture through one problem: a payment platform that charges customers through several payment providers. It has two levels, each a self-contained Maven module: Level 1 builds it as a hexagonal architecture, Level 2 rebuilds the same behaviour as a layered architecture. [Architecture.md](Architecture.md) is the **single source of truth** for the level map, conventions, domain vocabulary and tech stack. If a level README disagrees with it, Architecture.md wins and the README should be fixed.
 
 ## Current state of the working tree
 
-On disk: `levels/08-hexagonal-architecture`, `levels/09-layered-architecture`, `levels/_template` and `tools/provider-simulators`. The root `pom.xml` lists exactly the simulators, level 8 and level 9, so reactor builds from the root work.
+On disk: `levels/01-hexagonal-architecture`, `levels/02-layered-architecture` and `tools/provider-simulators`. The root `pom.xml` lists exactly the simulators, Level 1 and Level 2, so reactor builds from the root work.
 
-**Level 9 is the active level.** It is a layered rewrite of Level 8 with the same behaviour and HTTP API, using Spring Data JPA for persistence. Its target design is in `levels/09-layered-architecture/docs/LAYERED-ARCHITECTURE-PROPOSAL.md`, and the reading guide in `docs/CODE-GUIDE.md`. The code carries `FLOW A–D, S` step comments and a `package-info.java` guide per layer; keep them accurate when changing a flow. Level 8 stays as the hexagonal reference to compare against; don't change it while working on Level 9.
+**Level 2 is the active level.** It is a layered rewrite of Level 1 with the same behaviour and HTTP API, using Spring Data JPA for persistence. Its target design is in `levels/02-layered-architecture/docs/LAYERED-ARCHITECTURE-PROPOSAL.md`, and the reading guide in `docs/CODE-GUIDE.md`. The code carries `FLOW A–D, S` step comments and a `package-info.java` guide per layer; keep them accurate when changing a flow. Level 1 stays as the hexagonal reference to compare against; don't change it while working on Level 2.
 
 ```bash
-./mvnw test                                                              # everything (sims + L8 + L9)
-./mvnw -f levels/09-layered-architecture/pom.xml test                    # level 9 only
-./mvnw -f levels/09-layered-architecture/pom.xml test -Dtest=ProviderRoutingServiceTest
-./mvnw -f levels/09-layered-architecture/pom.xml test -Dtest='GatewayContractTest*'
-./mvnw -f levels/09-layered-architecture/pom.xml test -Dtest=LayeredArchitectureTest
+./mvnw test                                                              # everything (sims + L1 + L2)
+./mvnw -f levels/02-layered-architecture/pom.xml test                    # level 2 only
+./mvnw -f levels/02-layered-architecture/pom.xml test -Dtest=ProviderRoutingServiceTest
+./mvnw -f levels/02-layered-architecture/pom.xml test -Dtest='GatewayContractTest*'
+./mvnw -f levels/02-layered-architecture/pom.xml test -Dtest=LayeredArchitectureTest
 ./mvnw -f tools/provider-simulators/pom.xml install                      # after changing a simulator
 ./mvnw -q install -DskipTests                                            # before running a level
 ./mvnw -q exec:java -pl tools/provider-simulators                        # start sims (ports 4101–4107)
-./mvnw -q spring-boot:run -pl levels/09-layered-architecture             # app on :8080
+./mvnw -q spring-boot:run -pl levels/02-layered-architecture             # app on :8080
 ```
 
-Tests start the simulators in-process on random ports, so nothing else needs to be running. Env vars override `application.yml` through Spring relaxed binding (`PAYMENT_PROVIDER`, `SERVER_PORT`). Level 9 uses a file H2 DB at `./target/level09-db` (Level 8: `./target/level08-db`). `schema.sql` owns the tables; Hibernate runs with `ddl-auto: none` and `open-in-view: false`.
+Tests start the simulators in-process on random ports, so nothing else needs to be running. Env vars override `application.yml` through Spring relaxed binding (`PAYMENT_PROVIDER`, `SERVER_PORT`). Level 2 uses a file H2 DB at `./target/level02-db` (Level 1: `./target/level01-db`). `schema.sql` owns the tables; Hibernate runs with `ddl-auto: none` and `open-in-view: false`.
 
-## Level 9 architecture (enforced by `architecture/LayeredArchitectureTest`, a violating import fails the build)
+## Level 2 architecture (enforced by `architecture/LayeredArchitectureTest`, a violating import fails the build)
 
-Layers under `com.designpatterns.level09`, dependencies only point down:
+Layers under `com.designpatterns.level02`, dependencies only point down:
 
 ```
 presentation → service → persistence | integration → model        (config wires everything)
@@ -46,16 +46,16 @@ Design choices to keep:
 - Insert-only rows (new payments, inbox events, idempotency keys) implement `Persistable`, so `save()` inserts and fails on a duplicate instead of silently overwriting.
 - How a `GatewayResult` changes a `Payment` is decided only in `service/payment/GatewayResultApplier`.
 
-## Level 8 (hexagonal reference)
+## Level 1 (hexagonal reference)
 
-Packages `payments` (framework-free core: `domain` + `application` with ports), `providers/*`, `platform`, `merchants`, `audit`, `api` and `config`, enforced by `architecture/ArchitectureTest`. Ports live with the consumer, and business classes are wired with `@Bean` methods, never `@Service`. Webhook controllers live in `providers/<name>/webhook/`. Build it with `./mvnw -f levels/08-hexagonal-architecture/pom.xml test`.
+Packages `payments` (framework-free core: `domain` + `application` with ports), `providers/*`, `platform`, `merchants`, `audit`, `api` and `config`, enforced by `architecture/ArchitectureTest`. Ports live with the consumer, and business classes are wired with `@Bean` methods, never `@Service`. Webhook controllers live in `providers/<name>/webhook/`. Build it with `./mvnw -f levels/01-hexagonal-architecture/pom.xml test`.
 
 ## Domain invariants worth remembering
 
 - Money is integer minor units + ISO-4217 currency (`Money.of(1999, "EUR")`), never floats. Watch out for zero-decimal currencies (JPY). The PayPal-like sim uses decimal strings, so adapters convert.
 - A **timeout or lost response means "outcome unknown"**. Never fall back to another provider after one, because that can double-charge. Unknown outcomes are resolved by reconciliation (lookup by our attempt id). Only errors that prove no charge happened are safe to fall back on.
 - "Requires customer action" (PayPal approval, 3-D Secure) cannot be hidden in an adapter. It is an explicit result outcome.
-- Money-moving API commands require an `Idempotency-Key` header, scoped to merchant + path (L9: `presentation/rest/IdempotentRequestExecutor` + `service/idempotency/IdempotencyService`).
+- Money-moving API commands require an `Idempotency-Key` header, scoped to merchant + path (L2: `presentation/rest/IdempotentRequestExecutor` + `service/idempotency/IdempotencyService`).
 - Provider webhooks are verified (signature) before anything is stored, and deduplicated through the inbox (`ProviderEventInboxRepository`).
 
 ## Provider simulators (`tools/provider-simulators`)

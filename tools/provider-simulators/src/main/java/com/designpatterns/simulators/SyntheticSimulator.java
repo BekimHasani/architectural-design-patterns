@@ -11,7 +11,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Small providers with deliberately awkward capabilities, for Level 8. One API, one {@link Mode}:
+ * Small providers with deliberately awkward capabilities, for the capability model. One API, one {@link Mode}:
  *
  * <pre>
  * POST /pay               {amountMinor, currency, ref}   X-Key: syn_...   (same ref → same payment)

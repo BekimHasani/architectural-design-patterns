@@ -3,7 +3,7 @@ package com.designpatterns.simulators;
 /**
  * Runs all simulators on their default ports until the process is killed. Webhooks go to
  * {@code $APP_URL/webhooks/{stripe|paypal|adyen}} (default http://localhost:8080), signed with
- * the secrets below, which match the Level 6+ application.yml.
+ * the secrets below, which match both levels' application.yml.
  */
 public final class SimulatorsMain {
 

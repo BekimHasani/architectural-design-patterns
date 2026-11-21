@@ -39,7 +39,7 @@ public final class PayPalLikeSimulator extends BaseSimulator {
     public static final String CLIENT_ID = "sim-client";
     public static final String CLIENT_SECRET = "sim-secret";
     private static final String ORDERS = "/v2/checkout/orders";
-    /** This simulated PayPal can't take e.g. JPY, which makes routing conflicts real (Level 3). */
+    /** This simulated PayPal can't take e.g. JPY, which makes routing conflicts real. */
     public static final Set<String> SUPPORTED_CURRENCIES = Set.of("EUR", "USD", "GBP");
 
     private final AtomicLong ids = new AtomicLong();

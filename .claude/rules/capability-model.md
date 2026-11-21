@@ -1,10 +1,10 @@
 ---
 paths:
-  - "levels/08-*/src/**/providers/**"
-  - "levels/08-*/src/**/payments/**"
+  - "levels/01-*/src/**/providers/**"
+  - "levels/01-*/src/**/payments/**"
 ---
 
-# Level 8 capability model (option D, see `docs/adr/0005-capability-model.md`)
+# Level 1 capability model (option D, see `docs/adr/0005-capability-model.md`)
 
 A provider makes two claims, and `InMemoryGatewayRegistry.requireHonestDescriptor` checks at startup that they agree (if they don't, the app won't start):
 - **Types**: it implements `ProviderAdapter` plus only the capability interfaces it really supports (`Authorizer`, `DirectCharger`, `Capturer`, `Canceller`, `Refunder`, `ActionCompleter`) from `payments/application/capabilities`.

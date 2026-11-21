@@ -1,11 +1,11 @@
 # Provider Simulators
 
-Local fake payment providers, used by every level from L1 onward. They exist so
+Local fake payment providers, used by both levels as a test-scoped dependency. They exist so
 that:
 
 - the demos are **free and deterministic** (no real API keys),
 - each provider has a **genuinely different API**, so adapters have real work to do,
-- failures can be **injected on demand** for Levels 4–6.
+- failures can be **injected on demand** (timeouts, 5xx, lost responses, webhook faults).
 
 > The simulators are test tooling, **not** part of the architecture being studied.
 > Keep them simple; don't apply the levels' patterns here.
@@ -72,23 +72,23 @@ X-Sim-Fault: <mode>
 POST /sim/faults  { mode: "<mode>", count: 3 }   # next 3 requests
 ```
 
-| Mode | Behaviour | Used in |
+| Mode | Behaviour | Exercises |
 |------|-----------|---------|
 | `none` | Normal | all |
-| `decline` | Hard decline (card declined / refused) | L2, L4 |
-| `soft-decline` | Retryable decline (e.g. insufficient funds, try later) | L4 |
-| `slow:<ms>` | Respond after delay | L4 |
-| `timeout` | Never respond | L4 |
-| `http-500` | Error **before** processing (no charge happens) | L4 |
-| `http-503` | Unavailable (no charge happens) | L4 |
-| `http-429` | Rate limited, with `Retry-After` | L4 |
-| `refuse-connection` | Socket closed before request accepted | L4 |
-| `drop-after-commit` | **Charge succeeds**, then connection is cut before the response | L5 |
-| `requires-action` | Payment needs customer action (3DS / approval) | L2, L6 |
-| `async` | Returns pending; final result arrives later by webhook | L6 |
-| `webhook-duplicate` | Sends the same webhook twice | L6 |
-| `webhook-out-of-order` | Sends "succeeded" before "processing" | L6 |
-| `webhook-bad-signature` | Sends a webhook with an invalid signature | L6 |
+| `decline` | Hard decline (card declined / refused) | error mapping, fallback |
+| `soft-decline` | Retryable decline (e.g. insufficient funds, try later) | retry |
+| `slow:<ms>` | Respond after delay | timeouts |
+| `timeout` | Never respond | unknown outcome, reconciliation |
+| `http-500` | Error **before** processing (no charge happens) | retry, safe fallback |
+| `http-503` | Unavailable (no charge happens) | circuit breaker, safe fallback |
+| `http-429` | Rate limited, with `Retry-After` | retry |
+| `refuse-connection` | Socket closed before request accepted | safe fallback |
+| `drop-after-commit` | **Charge succeeds**, then connection is cut before the response | idempotency, reconciliation |
+| `requires-action` | Payment needs customer action (3DS / approval) | `RequiresAction` result |
+| `async` | Returns pending; final result arrives later by webhook | webhooks |
+| `webhook-duplicate` | Sends the same webhook twice | inbox dedup |
+| `webhook-out-of-order` | Sends "succeeded" before "processing" | out-of-order events |
+| `webhook-bad-signature` | Sends a webhook with an invalid signature | signature verification |
 
 Sims keep in-memory state, honour idempotency keys like the real thing (same key →
 same stored response), and expose `GET /sim/ledger` so tests can check **how many
@@ -119,29 +119,29 @@ tools/provider-simulators/
 
 Faults implemented so far: `none`, `decline`, `requires-action`, `http-500`,
 `http-503`, `http-429` (sends `Retry-After: 1`), `timeout` and `drop-after-commit`.
-The others in §2 are added by the level that needs them.
+The others in §2 are not implemented yet; add one when a test needs it.
 
 > `timeout` and `drop-after-commit` both mean **the provider processes the request
 > (charges the card), and the answer never arrives**. `timeout` holds it back for 10 s;
 > `drop-after-commit` closes the connection without any response. That is the
-> dangerous kind of failure, the reason Level 4 never falls back after one, and the
-> starting point of Level 5. "Connection refused" is tested by closing the simulator.
+> dangerous kind of failure, the reason the platform never falls back after one, and
+> why reconciliation exists. "Connection refused" is tested by closing the simulator.
 
 **Idempotency (all three sims).** A repeated create with the same key (`Idempotency-Key`
 for Stripe/Adyen, `PayPal-Request-Id` for PayPal) returns the **stored** answer,
 delivered normally, and never charges again.
 
-**Lookup by our reference (Level 5 reconciliation).** Stripe-like:
+**Lookup by our reference (reconciliation).** Stripe-like:
 `GET /v1/payment_intents/search?query=metadata['attempt_id']:'att_1'` (shaped like
 Stripe's search API). PayPal-like: `GET /v2/checkout/orders?reference_id=att_1`.
 Adyen-like: `GET /v71/payments?merchantReference=att_1`. The last two are
 simulator-only conveniences; real PayPal and Adyen lean on reports and webhooks.
 
 The PayPal-like sim only accepts EUR, USD and GBP (`PayPalLikeSimulator.SUPPORTED_CURRENCIES`);
-anything else gets `422 CURRENCY_NOT_SUPPORTED`. That makes the Level 3 routing
-conflict real.
+anything else gets `422 CURRENCY_NOT_SUPPORTED`. That makes the routing
+conflict (merchant prefers PayPal, currency it can't take) real.
 
-**Webhooks (Level 6).** `sim.sendWebhooksTo(url, secret)` turns them on (`SimulatorsMain`
+**Webhooks.** `sim.sendWebhooksTo(url, secret)` turns them on (`SimulatorsMain`
 points them at `http://localhost:8080/webhooks/{stripe|paypal|adyen}`). An immediate result
 is delivered **before** the API answer, so the "webhook beats the response" race is the
 normal case. `ASYNC` (API fault) answers "processing" / "Received"; `stripe.settle(id, ok)`
@@ -156,13 +156,13 @@ the app answered (e.g. Adyen's required `[accepted]`).
 | PayPal-like | `Sim-Transmission-Sig = hex hmac_sha256(secret, transmissionId + "\|" + time + "\|" + body)` |
 | Adyen-like | per item: `additionalData.hmacSignature = base64 hmac_sha256(key, psp:merchantRef:eventCode:success)` |
 
-**Level 7 additions.** Manual capture (`capture_method: manual`, Adyen `manualCapture: true`), partial
+**Operations beyond a plain charge.** Manual capture (`capture_method: manual`, Adyen `manualCapture: true`), partial
 capture, cancel/void, partial refund, with faults and idempotency on each. `sim.refunds()` is the
 refund ledger, `sim.credentialsSeen()` proves which merchant's key was used. Failures that were
 never processed (5xx, 429) are **not** stored under an idempotency key, so a retry really retries.
 **Provider X** (port 4104, `ProviderXSimulator`) charges directly: no capture, no cancel.
 
-**Level 8 addition.** `SyntheticSimulator` runs one small API in three modes: `HOLD` (port 4105, no
+**Synthetic providers (capability model).** `SyntheticSimulator` runs one small API in three modes: `HOLD` (port 4105, no
 refunds), `CHARGE` (4106, charge only), `ASYNC` (4107, always pending until `settle(id)`).
 
 Extra endpoints beyond §1: Stripe-like `POST /v1/payment_intents/{id}/confirm`
@@ -183,7 +183,7 @@ try (StripeLikeSimulator stripe = StripeLikeSimulator.start(0)) {
 ```
 
 ```bash
-./mvnw -q install -DskipTests && ./mvnw -q exec:java -pl tools/provider-simulators   # ports 4101–4103
+./mvnw -q install -DskipTests && ./mvnw -q exec:java -pl tools/provider-simulators   # ports 4101–4107
 ```
 
-Build it incrementally: only what the current level needs.
+Keep it small: add only what a test needs.
