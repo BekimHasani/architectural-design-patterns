@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": ["Bash(npm run lint)", "Bash(npm run test:*)",
+        "Bash(./mvnw -f levels/08-scaling-to-many-providers/pom.xml:*)",
+        "Bash(./mvnw -f tools/provider-simulators/pom.xml install)"],
+    "ask":  ["Bash(git commit:*)"],
+    "deny": ["Read(./secrets/**)", 
+            "Bash(curl:*)", 
+            "Bash(git push:*)", 
+            "Read(**/.env)",
+            "Read(**/.env.)"]
+  }
+}

@@ -1,0 +1,4 @@
+{"id":"5O190127TN364715T","status":"CREATED","links":[
+ {"rel":"self","href":"https://api.paypal.example/v2/checkout/orders/5O190127TN364715T","method":"GET"},
+ {"rel":"approve","href":"https://www.paypal.example/checkoutnow?token=5O190127TN364715T","method":"GET"},
+ {"rel":"capture","href":"https://api.paypal.example/v2/checkout/orders/5O190127TN364715T/capture","method":"POST"}]}
