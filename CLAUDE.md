@@ -6,12 +6,10 @@ A learning repo that teaches source-code architecture through one problem: a pay
 
 ## Current state of the working tree
 
-On disk: `levels/01-hexagonal-architecture`, `levels/02-layered-architecture`, `levels/03-architectural-challenge` and `tools/provider-simulators`. The root `pom.xml` lists exactly these four modules, so reactor builds from the root work.
-
-**Level 2 is the active level.** It is a layered rewrite of Level 1 with the same behaviour and HTTP API, using Spring Data JPA for persistence. Its target design is in `levels/02-layered-architecture/docs/LAYERED-ARCHITECTURE-PROPOSAL.md`, and the reading guide in `docs/CODE-GUIDE.md`. The code carries `FLOW A–D, S` step comments and a `package-info.java` guide per layer; keep them accurate when changing a flow. Level 1 stays as the hexagonal reference to compare against; don't change it while working on Level 2.
+**Level 2 is the active level.** It is a layered rewrite of Level 1 with the same behaviour and HTTP API, using Spring Data JPA for persistence. Level 1 stays as the hexagonal reference to compare against; don't change it while working on another level.
 
 ```bash
-./mvnw test                                                              # everything (sims + L1 + L2)
+./mvnw test                                                              # everything (sims + L1 + L2 + L3, without L3's challenge tests)
 ./mvnw -f levels/02-layered-architecture/pom.xml test                    # level 2 only
 ./mvnw -f levels/02-layered-architecture/pom.xml test -Dtest=ProviderRoutingServiceTest
 ./mvnw -f levels/02-layered-architecture/pom.xml test -Dtest='GatewayContractTest*'
@@ -22,44 +20,23 @@ On disk: `levels/01-hexagonal-architecture`, `levels/02-layered-architecture`, `
 ./mvnw -q spring-boot:run -pl levels/02-layered-architecture             # app on :8080
 ```
 
-Tests start the simulators in-process on random ports, so nothing else needs to be running. Env vars override `application.yml` through Spring relaxed binding (`PAYMENT_PROVIDER`, `SERVER_PORT`). Level 2 uses a file H2 DB at `./target/level02-db` (Level 1: `./target/level01-db`). `schema.sql` owns the tables; Hibernate runs with `ddl-auto: none` and `open-in-view: false`.
+Tests start the simulators in-process on random ports, so nothing else needs to be running. Env vars override `application.yml` through Spring relaxed binding (`PAYMENT_PROVIDER`, `SERVER_PORT`).
 
 ## Level 3 (architectural challenge): the bugs are intentional
 
-`levels/03-architectural-challenge` (package `com.designpatterns.level03`) is a compact Level 2-style app with **5 planted issues** (2 architectural, 3 technical) plus deliberate smells. **Do not fix them, or "clean up" the smells, unless the user asks you to solve the challenge.** The answers and reference fixes are in the `<details>` blocks of its README; don't reveal them unprompted.
+`levels/03-architectural-challenge` (package `com.designpatterns.level03`) is a compact Level 2-style app with **5 planted issues** (2 architectural, 3 technical) plus deliberate smells. **Do not fix them, or "clean up" the smells, unless the user asks you to solve the challenge.** The answers and reference fixes are in the `<details>` blocks of its README; don't reveal them unprompted. Its test rules (the `challenge` tag, the 63 green / 8 red counts) are in `.claude/rules/level-03-challenge.md`.
 
-Tests tagged `challenge` (JUnit `@Tag`, ArchUnit `@ArchTag`) detect the issues and fail until they are fixed. The level's `pom.xml` excludes them by default; `-Pchallenge` runs only them. Expected state: default build 63 green; `-Pchallenge` 8 failing. A change to Level 3 must keep both numbers, and the reference fixes must still turn the 8 green without test changes.
+## Per-level rules (`.claude/rules/`, loaded when you work on matching files)
 
-```bash
-./mvnw -f levels/03-architectural-challenge/pom.xml test               # 63 tests, green
-./mvnw -f levels/03-architectural-challenge/pom.xml test -Pchallenge   # 8 tests, red by design
-```
+| File | Loads for | What it holds |
+|------|-----------|---------------|
+| `level-01-hexagonal.md` | `levels/01-*` | Hexagonal packages, ports with the consumer, `@Bean` wiring |
+| `capability-model.md` | Level 1 `providers/` and `payments/` | Capability interfaces, descriptor, `GatewayContractTest` |
+| `layered-architecture.md` | `levels/02-*` and `levels/03-*` | Layer rules shared by both layered levels |
+| `level-02-design.md` | `levels/02-*` | Level 2 layer contents and design choices (version column, `Persistable`, `GatewayResultApplier`) |
+| `level-03-challenge.md` | `levels/03-*` | Challenge tests and the counts a change must keep |
 
-## Level 2 architecture (enforced by `architecture/LayeredArchitectureTest`, a violating import fails the build)
-
-Layers under `com.designpatterns.level02`, dependencies only point down:
-
-```
-presentation → service → persistence | integration → model        (config wires everything)
-```
-
-- `model/`: the domain (`Payment` aggregate, `Money`, ids, `Capability`, domain exceptions including `ConcurrentUpdateException`). **Pure Java**: depends only on itself and `java.*`. No `@Entity`, no Spring.
-- `persistence/`: repository interfaces owned by this layer, written in model types (`PaymentRepository`, `PaymentAttemptRepository`, `ProviderEventInboxRepository`, `IdempotencyKeyRepository`, `AuditEventRepository`, `MerchantConfigRepository`). `persistence/jpa/` holds the package-private `@Entity` classes, Spring Data interfaces (one top-level file each; Spring Data doesn't scan nested ones) and `Jpa*Repository` adapters that map entity ↔ model. **JPA/Hibernate may only be used in `persistence.jpa`.**
-- `integration/`: the provider contract (`gateway/`: `ProviderAdapter`, capability interfaces, `CapabilityBinding`, sealed `GatewayResult`, the `ProviderGateway` facade, `ProviderFactory`), `resilience/` (retry + circuit breaker), `support/`, `webhook/` (`ProviderEventTranslator` strategy, `WebhookTranslators` registry) and `provider/<name>/`.
-- `service/`: `@Service` use cases (payment, routing, event, reconciliation, merchant, idempotency, audit). Services may not use Spring Data/JPA/web types, may not reference a concrete provider, and may not use **`@Transactional`**: a transaction must never stay open across a provider call, so transactions are opened only inside persistence with `TransactionTemplate`.
-- `presentation/`: `rest/` controllers, DTOs and `ApiExceptionHandler` (ProblemDetail); `webhook/ProviderWebhookController` (one `POST /webhooks/{provider}` for every provider); `scheduling/ReconciliationScheduler`. Controllers live only here.
-- `config/`: the composition root and the only place that reads configuration. It must **not name any provider**: providers register themselves through a `ProviderFactory` `@Component`.
-- `persistence` and `integration` must not depend on each other.
-- Each `integration/provider/<name>/` exposes only its gateway as public. DTOs, mappers, clients and the webhook translator are package-private. Providers may not depend on each other (except `integration/support`).
-
-Design choices to keep:
-- A payment's `version` is a plain column, not JPA `@Version`. `JpaPaymentRepository` locks the row (`SELECT … FOR UPDATE`), checks the version and writes it +1 in one short transaction. A lost race or a lock timeout becomes `ConcurrentUpdateException`, and services reload, apply and save again.
-- Insert-only rows (new payments, inbox events, idempotency keys) implement `Persistable`, so `save()` inserts and fails on a duplicate instead of silently overwriting.
-- How a `GatewayResult` changes a `Payment` is decided only in `service/payment/GatewayResultApplier`.
-
-## Level 1 (hexagonal reference)
-
-Packages `payments` (framework-free core: `domain` + `application` with ports), `providers/*`, `platform`, `merchants`, `audit`, `api` and `config`, enforced by `architecture/ArchitectureTest`. Ports live with the consumer, and business classes are wired with `@Bean` methods, never `@Service`. Webhook controllers live in `providers/<name>/webhook/`. Build it with `./mvnw -f levels/01-hexagonal-architecture/pom.xml test`.
+Each rule file starts with a `paths:` list of globs. To add a level, add a rule file; the `architecture-reviewer` agent picks it up automatically.
 
 ## Domain invariants worth remembering
 
