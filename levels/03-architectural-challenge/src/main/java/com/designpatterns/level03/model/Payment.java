@@ -83,7 +83,8 @@ public final class Payment {
         if (requested.isZero()) {
             throw new PaymentRuleViolationException("A refund needs an amount above zero");
         }
-        if (requested.isGreaterThan(amount)) {
+        Money totalAmount = amount.minus(refunded);
+        if (requested.isGreaterThan(totalAmount)) {
             throw new PaymentRuleViolationException("Refund of " + requested + " exceeds the captured " + amount);
         }
     }
