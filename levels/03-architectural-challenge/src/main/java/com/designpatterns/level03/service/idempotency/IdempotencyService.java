@@ -1,5 +1,6 @@
 package com.designpatterns.level03.service.idempotency;
 
+import com.designpatterns.level03.model.Payment;
 import com.designpatterns.level03.persistence.IdempotencyRepository;
 
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class IdempotencyService {
             throw new IllegalArgumentException("Idempotency-Key header is required");
         }
         Optional<String> previous = keys.findResult(idempotencyKey);
+        //todo -> must check the merchant id along with not check only the idemKey,
         if (previous.isPresent()) {
             return previous.get();
         }
