@@ -1,4 +1,4 @@
-package com.designpatterns.level03.presentation.rest.dto;
+package com.designpatterns.level03.model.dto;
 
 public record CreatePaymentRequest(String customerId, String currency, Long amountMinor) {
 }

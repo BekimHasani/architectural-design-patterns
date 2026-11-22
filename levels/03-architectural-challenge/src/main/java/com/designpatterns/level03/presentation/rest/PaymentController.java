@@ -1,9 +1,9 @@
 package com.designpatterns.level03.presentation.rest;
 
 import com.designpatterns.level03.model.Money;
-import com.designpatterns.level03.presentation.rest.dto.CreatePaymentRequest;
-import com.designpatterns.level03.presentation.rest.dto.PaymentResponse;
-import com.designpatterns.level03.presentation.rest.dto.RefundPaymentRequest;
+import com.designpatterns.level03.model.dto.CreatePaymentRequest;
+import com.designpatterns.level03.model.dto.PaymentResponse;
+import com.designpatterns.level03.model.dto.RefundPaymentRequest;
 import com.designpatterns.level03.service.idempotency.IdempotencyService;
 import com.designpatterns.level03.service.payment.ChargeCommand;
 import com.designpatterns.level03.service.payment.PaymentService;

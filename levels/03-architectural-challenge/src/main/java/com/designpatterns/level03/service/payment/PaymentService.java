@@ -11,7 +11,7 @@ import com.designpatterns.level03.model.Payment;
 import com.designpatterns.level03.model.exceptions.PaymentNotFoundException;
 import com.designpatterns.level03.model.exceptions.PaymentRuleViolationException;
 import com.designpatterns.level03.persistence.PaymentRepository;
-import com.designpatterns.level03.presentation.rest.dto.PaymentResponse;
+import com.designpatterns.level03.model.dto.PaymentResponse;
 import com.designpatterns.level03.service.routing.RoutingService;
 
 import org.springframework.stereotype.Service;
