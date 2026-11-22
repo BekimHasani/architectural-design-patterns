@@ -40,7 +40,8 @@ public class PaymentService {
         Payment payment = Payment.create("pay_" + UUID.randomUUID(), command.merchantId(), command.customerId(), command.amount());
         payments.save(payment);
 
-        String lastFailure = "No provider available for " + command.amount().currency();
+//        String lastFailure = "No provider available for " + command.amount().currency();
+        String lastFailure = "second";
         for (String providerId : routing.candidatesFor(command.amount().currency())) {
             String attemptId = "att_" + UUID.randomUUID();
             System.out.println("Charging " + command.amount() + " at " + providerId + " (payment " + payment.id() + ", attempt " + attemptId + ")");
