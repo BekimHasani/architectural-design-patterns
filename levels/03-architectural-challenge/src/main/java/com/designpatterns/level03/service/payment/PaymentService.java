@@ -53,8 +53,11 @@ public class PaymentService {
                 payment.markDeclined(providerId, declined.reason());
                 return payments.save(payment);
             } else if (result instanceof GatewayResult.Failed failed) {
-                System.out.println("Provider " + providerId + " failed: " + failed.detail() + ", trying the next one");
-                lastFailure = providerId + ": " + failed.detail();
+                if (!failed.kind().equals(GatewayResult.FailureKind.NOTHING_CHARGED)) {
+                    System.out.println("Provider " + providerId + " failed: " + failed.detail() + ", trying the next one");
+                    payment.markOutcomeUnknown(providerId, failed.detail());
+                    return payments.save(payment);
+                }
             }
         }
         payment.markFailed(lastFailure);
