@@ -1,9 +1,9 @@
 package com.designpatterns.level03.presentation.rest;
 
 import com.designpatterns.level03.model.Money;
-import com.designpatterns.level03.model.dto.CreatePaymentRequest;
-import com.designpatterns.level03.model.dto.PaymentResponse;
-import com.designpatterns.level03.model.dto.RefundPaymentRequest;
+import com.designpatterns.level03.presentation.rest.dto.CreatePaymentRequest;
+import com.designpatterns.level03.presentation.rest.dto.PaymentResponse;
+import com.designpatterns.level03.presentation.rest.dto.RefundPaymentRequest;
 import com.designpatterns.level03.service.idempotency.IdempotencyService;
 import com.designpatterns.level03.service.payment.ChargeCommand;
 import com.designpatterns.level03.service.payment.PaymentService;
@@ -53,12 +53,13 @@ public class PaymentController {
         String paymentId = idempotency.execute(merchantId, "POST /payments", idempotencyKey,
                 () -> paymentService.charge(new ChargeCommand(merchantId, request.customerId(), amount)).id());
 
-        return ResponseEntity.created(URI.create("/payments/" + paymentId)).body(paymentService.find(merchantId, paymentId));
+        return ResponseEntity.created(URI.create("/payments/" + paymentId))
+                .body(PaymentResponse.from(paymentService.find(merchantId, paymentId)));
     }
 
     @GetMapping("/{paymentId}")
     public PaymentResponse get(@RequestHeader("X-Merchant-Id") String merchantId, @PathVariable String paymentId) {
-        return paymentService.find(merchantId, paymentId);
+        return PaymentResponse.from(paymentService.find(merchantId, paymentId));
     }
 
     @PostMapping("/{paymentId}/refunds")
@@ -69,12 +70,12 @@ public class PaymentController {
         if (request.amountMinor() == null || request.amountMinor() <= 0) {
             throw new IllegalArgumentException("amountMinor must be above zero");
         }
-        PaymentResponse current = paymentService.find(merchantId, paymentId);
+        PaymentResponse current = PaymentResponse.from(paymentService.find(merchantId, paymentId));
         Money amount = Money.of(request.amountMinor(), current.currency());
 
         idempotency.execute(merchantId, "POST /payments/" + paymentId + "/refunds", idempotencyKey,
                 () -> paymentService.refund(merchantId, paymentId, amount, request.reason()).id());
 
-        return paymentService.find(merchantId, paymentId);
+        return PaymentResponse.from(paymentService.find(merchantId, paymentId));
     }
 }

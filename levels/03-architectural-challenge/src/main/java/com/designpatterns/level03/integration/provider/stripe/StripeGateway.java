@@ -4,6 +4,7 @@ import com.designpatterns.level03.integration.gateway.ChargeRequest;
 import com.designpatterns.level03.integration.gateway.GatewayResult;
 import com.designpatterns.level03.integration.gateway.PaymentGateway;
 import com.designpatterns.level03.integration.gateway.RefundRequest;
+import com.designpatterns.level03.integration.support.ProviderHttp;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -24,7 +25,7 @@ public class StripeGateway implements PaymentGateway {
 
     public StripeGateway(@Value("${payment.stripe.base-url}") String baseUrl,
                          @Value("${payment.stripe.api-key}") String apiKey) {
-        this.stripe = com.designpatterns.level03.integration.support.ProviderHttp.restClient(baseUrl);
+        this.stripe = ProviderHttp.restClient(baseUrl);
         this.apiKey = apiKey;
     }
 
@@ -41,17 +42,13 @@ public class StripeGateway implements PaymentGateway {
                 .body(StripeMapper.toRequest(request)))));
     }
 
+    /** Stripe accepts a refund reason, which its dashboard shows to the merchant. */
     @Override
     public GatewayResult refund(RefundRequest request) {
-        return refund(request, null);
-    }
-
-    /** Stripe also accepts a refund reason, which its dashboard shows to the merchant. */
-    public GatewayResult refund(RefundRequest request, String reason) {
         return guard(() -> StripeMapper.toRefundResult(exchange(stripe.post()
                 .uri("/v1/refunds")
                 .headers(auth(request.operationId()))
-                .body(new StripeApi.Refund(request.providerReference(), request.amount().amountMinor(), reason)))));
+                .body(new StripeApi.Refund(request.providerReference(), request.amount().amountMinor(), request.reason())))));
     }
 
     private Consumer<HttpHeaders> auth(String idempotencyKey) {

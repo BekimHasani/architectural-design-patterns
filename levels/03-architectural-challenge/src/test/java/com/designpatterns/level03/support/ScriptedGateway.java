@@ -4,6 +4,7 @@ import com.designpatterns.level03.integration.gateway.ChargeRequest;
 import com.designpatterns.level03.integration.gateway.GatewayResult;
 import com.designpatterns.level03.integration.gateway.PaymentGateway;
 import com.designpatterns.level03.integration.gateway.RefundRequest;
+import com.designpatterns.level03.integration.gateway.capability.Refund;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -11,7 +12,7 @@ import java.util.Deque;
 import java.util.List;
 
 /** Test double: answers charges from a script and records every call. No HTTP involved. */
-public final class ScriptedGateway implements PaymentGateway {
+public final class ScriptedGateway implements PaymentGateway, Refund {
 
     public final List<ChargeRequest> charges = new ArrayList<>();
     public final List<RefundRequest> refunds = new ArrayList<>();

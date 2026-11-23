@@ -9,5 +9,6 @@ public interface PaymentGateway {
     /** Charges immediately (authorize + capture in one step). */
     GatewayResult charge(ChargeRequest request);
 
+    /** Refunds part or all of an earlier charge. A provider that can't show the reason ignores it. */
     GatewayResult refund(RefundRequest request);
 }

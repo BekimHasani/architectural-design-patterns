@@ -13,7 +13,7 @@ import org.springframework.web.client.RestClient;
 import static com.designpatterns.level03.integration.support.ProviderHttp.exchange;
 import static com.designpatterns.level03.integration.support.ProviderHttp.guard;
 
-/** ADAPTER for the Adyen-like API. */
+/** ADAPTER for the Adyen-like API. Adyen has no refund reason field, so {@link RefundRequest#reason()} is not sent. */
 @Component
 public class AdyenGateway implements PaymentGateway {
 

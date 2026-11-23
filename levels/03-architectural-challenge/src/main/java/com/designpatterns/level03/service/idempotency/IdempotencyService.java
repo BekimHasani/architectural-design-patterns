@@ -1,6 +1,5 @@
 package com.designpatterns.level03.service.idempotency;
 
-import com.designpatterns.level03.model.Payment;
 import com.designpatterns.level03.persistence.IdempotencyRepository;
 
 import org.springframework.stereotype.Service;
@@ -31,13 +30,23 @@ public class IdempotencyService {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("Idempotency-Key header is required");
         }
-        Optional<String> previous = keys.findResult(idempotencyKey);
-        //todo -> must check the merchant id along with not check only the idemKey,
+        String scopedKey = scopedKey(merchantId, operation, idempotencyKey);
+        Optional<String> previous = keys.findResult(scopedKey);
         if (previous.isPresent()) {
             return previous.get();
         }
         String result = command.get();
-        keys.save(idempotencyKey, result);
+        keys.save(scopedKey, result);
         return result;
+    }
+
+    /**
+     * A client's key only identifies a request together with who sent it and what it does: two
+     * merchants may both use "order-42", and a refund reusing a charge's key is a different request.
+     * The scope goes into the stored key itself, so the lookup and the table's primary key both
+     * work per merchant + operation + key.
+     */
+    private static String scopedKey(String merchantId, String operation, String idempotencyKey) {
+        return merchantId + "|" + operation + "|" + idempotencyKey;
     }
 }

@@ -2,18 +2,14 @@ package com.designpatterns.level03.service.payment;
 
 import com.designpatterns.level03.integration.gateway.ChargeRequest;
 import com.designpatterns.level03.integration.gateway.GatewayResult;
-import com.designpatterns.level03.integration.gateway.PaymentGateway;
 import com.designpatterns.level03.integration.gateway.ProviderGateways;
 import com.designpatterns.level03.integration.gateway.RefundRequest;
-import com.designpatterns.level03.integration.provider.stripe.StripeGateway;
 import com.designpatterns.level03.model.Money;
 import com.designpatterns.level03.model.Payment;
 import com.designpatterns.level03.model.exceptions.PaymentNotFoundException;
 import com.designpatterns.level03.model.exceptions.PaymentRuleViolationException;
 import com.designpatterns.level03.persistence.PaymentRepository;
-import com.designpatterns.level03.model.dto.PaymentResponse;
 import com.designpatterns.level03.service.routing.RoutingService;
-
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -40,8 +36,7 @@ public class PaymentService {
         Payment payment = Payment.create("pay_" + UUID.randomUUID(), command.merchantId(), command.customerId(), command.amount());
         payments.save(payment);
 
-//        String lastFailure = "No provider available for " + command.amount().currency();
-        String lastFailure = "second";
+        String lastFailure = "No provider available for " + command.amount().currency();
         for (String providerId : routing.candidatesFor(command.amount().currency())) {
             String attemptId = "att_" + UUID.randomUUID();
             System.out.println("Charging " + command.amount() + " at " + providerId + " (payment " + payment.id() + ", attempt " + attemptId + ")");
@@ -55,10 +50,13 @@ public class PaymentService {
                 return payments.save(payment);
             } else if (result instanceof GatewayResult.Failed failed) {
                 if (!failed.kind().equals(GatewayResult.FailureKind.NOTHING_CHARGED)) {
-                    System.out.println("Provider " + providerId + " failed: " + failed.detail() + ", trying the next one");
+                    System.out.println("Provider " + providerId + " outcome unknown: " + failed.detail() + ", not trying another provider");
                     payment.markOutcomeUnknown(providerId, failed.detail());
                     return payments.save(payment);
                 }
+
+                System.out.println("Provider " + providerId + " charged nothing: " + failed.detail() + ", trying the next one");
+                lastFailure = providerId + ": " + failed.detail();
             }
         }
         payment.markFailed(lastFailure);
@@ -72,14 +70,10 @@ public class PaymentService {
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));
         payment.checkRefundable(amount);
 
-        RefundRequest request = new RefundRequest("ref_" + UUID.randomUUID(), payment.providerReference(), amount);
-        PaymentGateway gateway = gateways.get(payment.providerId());
-        GatewayResult result;
-        if (gateway instanceof StripeGateway stripe) {
-            result = stripe.refund(request, reason); // Stripe shows the reason to the merchant
-        } else {
-            result = gateway.refund(request);
-        }
+        // The service talks to the PaymentGateway contract only. Whether a provider can show the reason
+        // is the adapter's business, so a new provider never adds a branch here.
+        RefundRequest request = new RefundRequest("ref_" + UUID.randomUUID(), payment.providerReference(), amount, reason);
+        GatewayResult result = gateways.get(payment.providerId()).refund(request);
 
         if (result instanceof GatewayResult.Succeeded) {
             payment.recordRefund(amount);
@@ -89,10 +83,9 @@ public class PaymentService {
     }
 
     /** Everything the GET endpoint shows, ready to return. */
-    public PaymentResponse find(String merchantId, String paymentId) {
-        Payment payment = payments.findById(paymentId)
+    public Payment find(String merchantId, String paymentId) {
+        return payments.findById(paymentId)
                 .filter(p -> p.merchantId().equals(merchantId))
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));
-        return PaymentResponse.from(payment);
     }
 }
